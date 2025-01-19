@@ -1,44 +1,37 @@
-# Packit configuration for Meson
-specfile_path: meson.spec
-upstream_project_url: https://github.com/mesonbuild/meson
-upstream_package_name: meson
-downstream_package_name: meson
+name: Check Meson Version
 
-actions:
-  post-upstream-clone:
-    - "sed -i \"s/Version:.*/Version: ${PACKIT_PROJECT_VERSION}/\" meson.spec"
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  workflow_dispatch:      # Allow manual triggers
 
 jobs:
-  - job: copr_build
-    trigger: commit
-    metadata:
-      targets:
-        - fedora-all
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-# GitHub specific configuration
-github_actions:
-  - name: Watch Meson Releases
-    on:
-      schedule:
-        - cron: '0 0 * * *'  # Run daily at midnight
-    jobs:
-      check-releases:
-        runs-on: ubuntu-latest
-        steps:
-          - uses: actions/checkout@v3
-          - name: Check for new releases
-            run: |
-              latest_version=$(curl -s https://api.github.com/repos/mesonbuild/meson/releases | \
-                jq -r '[.[] | select(.prerelease == false and .tag_name | test("rc|alpha|beta") | not)] | .[0].tag_name' | \
-                sed 's/^v//')
-              current_version=$(grep "Version:" meson.spec | awk '{print $2}')
-              if [ "$latest_version" != "$current_version" ]; then
-                sed -i "s/Version:.*/Version: ${latest_version}/" meson.spec
-                git config --global user.email "github-actions[bot]@users.noreply.github.com"
-                git config --global user.name "GitHub Actions"
-                git add meson.spec
-                git commit -m "Update meson to ${latest_version}"
-                git push
-              fi
+      - name: Get latest release
+        id: latest_release
+        run: |
+          # Fetch latest release from GitHub API, excluding RCs
+          VERSION=$(curl -s https://api.github.com/repos/mesonbuild/meson/releases | \
+                   jq -r '[.[] | select(.tag_name | test("rc|RC") | not)][0].tag_name' | \
+                   sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-upstream_tag_template: "{version}"
+      - name: Update spec file if needed
+        run: |
+          CURRENT_VERSION=$(grep -oP '^Version:\s*\K[\d.]+' meson.spec)
+          NEW_VERSION="${{ steps.latest_release.outputs.version }}"
+          
+          if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
+            sed -i "s/^Version:.*$/Version:        ${NEW_VERSION}/" meson.spec
+            
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            
+            git add meson.spec
+            git commit -m "Update Meson to version ${NEW_VERSION}"
+            git push
+          fi
