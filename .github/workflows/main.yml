@@ -1,27 +1,44 @@
+# Packit configuration for Meson
 specfile_path: meson.spec
+upstream_project_url: https://github.com/mesonbuild/meson
 upstream_package_name: meson
 downstream_package_name: meson
-upstream_project_url: https://github.com/mesonbuild/meson
-copy_upstream_release_description: false
-
-jobs:
-- job: pull_from_upstream
-  trigger: release
-  metadata:
-    dist-git-branch: rawhide
-  actions:
-    post-upstream-clone:
-      - "sed -i '/Release:/ s/1/0.1/' meson.spec"
-    get-current-version:
-      - "sed -n 's/^Version:\\s*\\(.*\\)/\\1/p' meson.spec"
 
 actions:
   post-upstream-clone:
-    - "sed -i 's/Release:.*/Release: %autorelease/g' meson.spec"
-  
-  get-current-version:
-    - "sed -n 's/^Version:\\s*\\(.*\\)/\\1/p' meson.spec"
+    - "sed -i \"s/Version:.*/Version: ${PACKIT_PROJECT_VERSION}/\" meson.spec"
 
-srpm_build_deps:
-  - python3-devel
-  - python3-setuptools
+jobs:
+  - job: copr_build
+    trigger: commit
+    metadata:
+      targets:
+        - fedora-all
+
+# GitHub specific configuration
+github_actions:
+  - name: Watch Meson Releases
+    on:
+      schedule:
+        - cron: '0 0 * * *'  # Run daily at midnight
+    jobs:
+      check-releases:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          - name: Check for new releases
+            run: |
+              latest_version=$(curl -s https://api.github.com/repos/mesonbuild/meson/releases | \
+                jq -r '[.[] | select(.prerelease == false and .tag_name | test("rc|alpha|beta") | not)] | .[0].tag_name' | \
+                sed 's/^v//')
+              current_version=$(grep "Version:" meson.spec | awk '{print $2}')
+              if [ "$latest_version" != "$current_version" ]; then
+                sed -i "s/Version:.*/Version: ${latest_version}/" meson.spec
+                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                git config --global user.name "GitHub Actions"
+                git add meson.spec
+                git commit -m "Update meson to ${latest_version}"
+                git push
+              fi
+
+upstream_tag_template: "{version}"
