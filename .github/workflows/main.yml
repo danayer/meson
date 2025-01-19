@@ -1,0 +1,23 @@
+# See the documentation for more information:
+# https://packit.dev/docs/configuration/
+ 
+upstream_project_url: https://github.com/mesonbuild/meson
+copy_upstream_release_description: false
+ 
+# do not sync release candidate versions
+upstream_tag_exclude: ".*rc\\d+"
+ 
+jobs:
+- job: pull_from_upstream
+  trigger: 
+    - release
+    - schedule:
+        cron: "0 0 * * *"  # Run at 00:00 every day
+  dist_git_branches:
+    - fedora-41
+  actions:
+    commit-message:
+    - bash -c 'echo "Update to ${PACKIT_PROJECT_VERSION}"'
+    - bash -c '[ -z "$PACKIT_RESOLVED_BUGS" ] || echo ${PACKIT_RESOLVED_BUGS} | tr " " "\n" | sed "s/^/- Resolves /"'
+    - bash -c 'echo "- Upstream tag: ${PACKIT_UPSTREAM_TAG}"'
+    - bash -c 'echo "- Upstream commit: ${PACKIT_UPSTREAM_COMMIT}"'
