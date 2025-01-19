@@ -1,24 +1,31 @@
-# See the documentation for more information:
-# https://packit.dev/docs/configuration/
- 
+# Meson project GitHub repository URL
 upstream_project_url: https://github.com/mesonbuild/meson
+
+# Don't copy release descriptions from GitHub
 copy_upstream_release_description: false
- 
-# do not sync release candidate versions
+
+# Exclude release candidates from processing
 upstream_tag_exclude: ".*rc\\d+"
- 
+
 jobs:
 - job: pull_from_upstream
   trigger:
+    # Trigger on new GitHub releases
     release:
       types: [published]
+    # Daily check for updates
     schedule:
-      - cron: '0 0 * * *'  # Run at 00:00 every day
+      - cron: '0 0 * * *'
+  # Target Fedora branch
   dist_git_branches:
     - fedora-41
+  # Update spec file and create formatted commit messages
   actions:
+    post-upstream-clone:
+      # Update Version in spec file
+      - bash -c 'sed -i "s/Version:.*/Version:        ${PACKIT_PROJECT_VERSION}/" meson.spec'
     commit-message:
-    - bash -c 'echo "Update to ${PACKIT_PROJECT_VERSION}"'
-    - bash -c '[ -z "$PACKIT_RESOLVED_BUGS" ] || echo ${PACKIT_RESOLVED_BUGS} | tr " " "\n" | sed "s/^/- Resolves /"'
-    - bash -c 'echo "- Upstream tag: ${PACKIT_UPSTREAM_TAG}"'
-    - bash -c 'echo "- Upstream commit: ${PACKIT_UPSTREAM_COMMIT}"'
+      # Format commit message with version and bug info
+      - bash -c 'echo "Update meson to ${PACKIT_PROJECT_VERSION}"'
+      - bash -c '[ -z "$PACKIT_RESOLVED_BUGS" ] || echo ${PACKIT_RESOLVED_BUGS} | tr " " "\n" | sed "s/^/Resolves: /"'
+      - bash -c 'echo "Upstream tag: ${PACKIT_UPSTREAM_TAG}"'
