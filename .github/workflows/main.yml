@@ -9,10 +9,11 @@ upstream_tag_exclude: ".*rc\\d+"
  
 jobs:
 - job: pull_from_upstream
-  trigger: 
-    - release
-    - schedule:
-        cron: "0 0 * * *"  # Run at 00:00 every day
+  trigger:
+    release:
+      types: [published]
+    schedule:
+      - cron: '0 0 * * *'  # Run at 00:00 every day
   dist_git_branches:
     - fedora-41
   actions:
