@@ -2,8 +2,8 @@ name: Check Meson Version
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight
-  workflow_dispatch:      # Allow manual triggers
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   check-version:
@@ -14,24 +14,27 @@ jobs:
       - name: Get latest release
         id: latest_release
         run: |
-          # Fetch latest release from GitHub API, excluding RCs
           VERSION=$(curl -s https://api.github.com/repos/mesonbuild/meson/releases | \
-                   jq -r '[.[] | select(.tag_name | test("rc|RC") | not)][0].tag_name' | \
-                   sed 's/^v//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+            jq -r '[.[] | select(.tag_name | test("rc|RC") | not)][0].tag_name' | \
+            sed 's/^v//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Update spec file if needed
         run: |
-          CURRENT_VERSION=$(grep -oP '^Version:\s*\K[\d.]+' meson.spec)
           NEW_VERSION="${{ steps.latest_release.outputs.version }}"
-          
+
+          # Получаем текущую версию, если она есть (не падаем)
+          CURRENT_VERSION=$(sed -n 's/^[[:space:]]*Version:[[:space:]]*\([0-9.]\+\).*/\1/p' meson.spec)
+
           if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
-            sed -i "s/^Version:.*$/Version:        ${NEW_VERSION}/" meson.spec
-            
+            sed -i "s/^[[:space:]]*Version:.*/Version:        ${NEW_VERSION}/" meson.spec
+
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
-            
+
             git add meson.spec
             git commit -m "Update Meson to version ${NEW_VERSION}"
             git push
+          else
+            echo "Meson already up to date: $CURRENT_VERSION"
           fi
